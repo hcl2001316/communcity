@@ -1,16 +1,34 @@
 package com.hcl.community.controller;
 
+import com.google.code.kaptcha.Producer;
 import com.hcl.community.entity.User;
 import com.hcl.community.service.UserService;
 import com.hcl.community.util.CommunityConstant;
+import com.hcl.community.util.CommunityUtil;
+import com.hcl.community.util.RedisKeyUtil;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 
+import javax.imageio.ImageIO;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 /**
  * @author 黄小爷
@@ -18,8 +36,20 @@ import java.util.Map;
  */
 @Controller
 public class LoginController implements CommunityConstant {
+
+
     @Autowired
     UserService userService;
+
+    @Autowired
+    private Producer kaptchaProducer;
+
+    @Value("${server.servlet.context-path}")
+    private String contextPath;
+
+    @Autowired
+    RedisTemplate redisTemplate;
+
 
     @GetMapping("/register")
     public String getRegisterPage(){
@@ -65,5 +95,71 @@ public class LoginController implements CommunityConstant {
         }
         return "/site/operate-result";
     }
+
+    @GetMapping(path = "/kaptcha")
+    public void getKaptcha(HttpServletResponse response) {
+        // 生成验证码
+        String text = kaptchaProducer.createText();
+        BufferedImage image = kaptchaProducer.createImage(text);
+        // 给每一个打开网站的用户分配一个字符串用来表示验证码的归属
+        String kaptchaOwner = CommunityUtil.generateUUID();
+        //将生成的随机凭证返回给客户端
+        Cookie cookie = new Cookie("kaptchaOwner", kaptchaOwner);
+        cookie.setMaxAge(60);
+        cookie.setPath(contextPath);
+        response.addCookie(cookie);
+        // 将验证码存入Redis  根据上面的凭证生成key
+        String redisKey = RedisKeyUtil.getKaptchaKey(kaptchaOwner);
+        redisTemplate.opsForValue().set(redisKey, text, 60, TimeUnit.SECONDS);
+
+        // 将突图片输出给浏览器
+        response.setContentType("image/png");
+        try {
+            OutputStream os = response.getOutputStream();
+            ImageIO.write(image, "png", os);
+        } catch (IOException e) {
+            throw new RuntimeException("响应验证码失败");
+        }
+    }
+
+    @PostMapping(path = "/login")
+    public String login(String username, String password, String code, boolean rememberme,
+                        Model model,HttpServletResponse response,
+                        @CookieValue("kaptchaOwner") String kaptchaOwner) {  //获取客户端传过来的凭证 然后去redis里面查询
+
+        String kaptcha = null;
+        if (StringUtils.isNotBlank(kaptchaOwner)) {
+            String redisKey = RedisKeyUtil.getKaptchaKey(kaptchaOwner);
+            kaptcha = (String) redisTemplate.opsForValue().get(redisKey);
+        }
+
+        if (StringUtils.isBlank(kaptcha) || StringUtils.isBlank(code) || !kaptcha.equalsIgnoreCase(code)) {
+            model.addAttribute("codeMsg", "验证码不正确!");
+            return "/site/login";
+        }
+
+        // 检查账号,密码
+        int expiredSeconds = rememberme ? REMEMBER_EXPIRED_SECONDS : DEFAULT_EXPIRED_SECONDS;
+        Map<String, Object> map = userService.login(username, password, expiredSeconds);
+        if (map.containsKey("ticket")) {
+            Cookie cookie = new Cookie("ticket", map.get("ticket").toString());
+            cookie.setPath(contextPath);
+            cookie.setMaxAge(expiredSeconds);
+            response.addCookie(cookie);
+            return "redirect:/index";
+        } else {
+            model.addAttribute("usernameMsg", map.get("usernameMsg"));
+            model.addAttribute("passwordMsg", map.get("passwordMsg"));
+            return "/site/login";
+        }
+    }
+
+    @GetMapping(path = "/logout")
+    public String logout(@CookieValue("ticket") String ticket) {
+        userService.logout(ticket);
+        SecurityContextHolder.clearContext();
+        return "redirect:/login";
+    }
+
 
 }
