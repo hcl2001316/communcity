@@ -1,6 +1,4 @@
 package com.hcl.community.controller;
-
-
 import com.alibaba.fastjson.JSONObject;
 import com.hcl.community.entity.Message;
 import com.hcl.community.entity.Page;

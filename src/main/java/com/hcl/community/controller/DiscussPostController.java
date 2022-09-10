@@ -69,11 +69,11 @@ public class DiscussPostController implements CommunityConstant {
         post.setCreateTime(new Date());
         discussPostService.insertDiscussPost(post);
 
-        // 触发发帖事件
+        // 触发发帖事件   把新发布的帖子放到es服务器中
         Event event = new Event()
                 .setTopic(TOPIC_PUBLISH)
                 .setUserId(user.getId())
-                .setEntityType(ENTITY_TYPE_POST)
+                .setEntityType(ENTITY_TYPE_POST)   //是关于哪个类型发送的消息
                 .setEntityId(post.getId());
         eventProducer.fireEvent(event);
 

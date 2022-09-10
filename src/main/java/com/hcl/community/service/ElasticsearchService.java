@@ -34,18 +34,21 @@ public class ElasticsearchService {
     @Autowired
     private ElasticsearchTemplate elasticTemplate;
 
+    //向es中增加一个帖子
     public void saveDiscussPost(DiscussPost post) {
         discussRepository.save(post);
     }
 
+    //从es中删除
     public void deleteDiscussPost(int id) {
         discussRepository.deleteById(id);
     }
 
+    //从es中搜索     keyword关键字   current 第几页
     public Page<DiscussPost> searchDiscussPost(String keyword, int current, int limit) {
         SearchQuery searchQuery = new NativeSearchQueryBuilder()
-                .withQuery(QueryBuilders.multiMatchQuery(keyword, "title", "content"))
-                .withSort(SortBuilders.fieldSort("type").order(SortOrder.DESC))
+                .withQuery(QueryBuilders.multiMatchQuery(keyword, "title", "content")) //搜索的字段是这俩
+                .withSort(SortBuilders.fieldSort("type").order(SortOrder.DESC))   //
                 .withSort(SortBuilders.fieldSort("score").order(SortOrder.DESC))
                 .withSort(SortBuilders.fieldSort("createTime").order(SortOrder.DESC))
                 .withPageable(PageRequest.of(current, limit))
@@ -57,14 +60,14 @@ public class ElasticsearchService {
         return elasticTemplate.queryForPage(searchQuery, DiscussPost.class, new SearchResultMapper() {
             @Override
             public <T> AggregatedPage<T> mapResults(SearchResponse response, Class<T> aClass, Pageable pageable) {
-                SearchHits hits = response.getHits();
+                SearchHits hits = response.getHits();        //命中的数据
                 if (hits.getTotalHits() <= 0) {
                     return null;
                 }
 
                 List<DiscussPost> list = new ArrayList<>();
                 for (SearchHit hit : hits) {
-                    DiscussPost post = new DiscussPost();
+                    DiscussPost post = new DiscussPost();        //把命中的数据封装到集合中
 
                     String id = hit.getSourceAsMap().get("id").toString();
                     post.setId(Integer.valueOf(id));

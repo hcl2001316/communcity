@@ -15,7 +15,8 @@ public class LikeService {
     private RedisTemplate redisTemplate;
 
     // 点赞
-    //entityUserId是被点赞的人的userId
+    //entityUserId是被点赞的人的userId 也就是实体的作者
+    //userId是点赞的人
     public void like(int userId, int entityType, int entityId, int entityUserId) {
         redisTemplate.execute(new SessionCallback() {
             @Override

@@ -38,7 +38,6 @@ public class EventConsumer implements CommunityConstant {
             logger.error("消息的内容为空!");
             return;
         }
-
         Event event = JSONObject.parseObject(record.value().toString(), Event.class);
         if (event == null) {
             logger.error("消息格式错误!");
@@ -67,14 +66,13 @@ public class EventConsumer implements CommunityConstant {
         messageService.addMessage(message);
     }
 
-    // 消费发帖事件
+    // 消费发帖事件  发布帖子之后需要修改es服务器里面的数据
     @KafkaListener(topics = {TOPIC_PUBLISH})
     public void handlePublishMessage(ConsumerRecord record) {
         if (record == null || record.value() == null) {
             logger.error("消息的内容为空!");
             return;
         }
-
         Event event = JSONObject.parseObject(record.value().toString(), Event.class);
         if (event == null) {
             logger.error("消息格式错误!");

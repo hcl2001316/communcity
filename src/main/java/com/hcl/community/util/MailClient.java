@@ -25,7 +25,6 @@ public class MailClient {
     //发送的目标 发送的主题 发送的内容
     public void sendMail(String to, String subject, String content) {
         try {
-
             //构建MimeMessage
             MimeMessage message = mailSender.createMimeMessage();
             //帮助我们构建里面的内容

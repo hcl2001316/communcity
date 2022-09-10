@@ -79,7 +79,7 @@ public class DataService {
         return (long) redisTemplate.execute(new RedisCallback() { //统计在这个区间中 只要用户在某一天登录访问了网站就记录注意OR运算
             @Override
             public Object doInRedis(RedisConnection connection) throws DataAccessException {
-                String redisKey = RedisKeyUtil.getDAUKey(df.format(start), df.format(end));
+                String redisKey = RedisKeyUtil.getDAUKey(df.format(start), df.format(end));  //存放的是合并之后的数据
                 connection.bitOp(RedisStringCommands.BitOperation.OR,
                         redisKey.getBytes(), keyList.toArray(new byte[0][0]));
                 return connection.bitCount(redisKey.getBytes());

@@ -2,17 +2,24 @@ package com.hcl.community.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.hcl.community.entity.Comment;
+import com.github.benmanes.caffeine.cache.CacheLoader;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.hcl.community.entity.DiscussPost;
 import com.hcl.community.mapper.DiscussPostMapper;
 import com.hcl.community.service.DiscussPostService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hcl.community.util.SensitiveFilter;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
+import javax.annotation.PostConstruct;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -30,13 +37,76 @@ public class DiscussPostServiceImpl extends ServiceImpl<DiscussPostMapper, Discu
 
     @Autowired
     SensitiveFilter sensitiveFilter;
-    @Override
-    public List<DiscussPost> selectDiscussPosts(int userId, int cur, int limit) {
+
+
+    @Value("${caffeine.posts.max-size}")
+    private int maxSize;
+
+    @Value("${caffeine.posts.expire-seconds}")
+    private int expireSeconds;
+
+    // Caffeine核心接口: Cache, LoadingCache, AsyncLoadingCache
+
+    // 帖子列表缓存
+    private LoadingCache<String, List<DiscussPost>> postListCache;
+
+    // 帖子总数缓存
+    private LoadingCache<Integer, Integer> postRowsCache;
+
+    @PostConstruct
+    public void init() {
+        System.out.println("init==========================================================================");
+        // 初始化帖子列表缓存
+        postListCache = Caffeine.newBuilder()
+                .maximumSize(maxSize)
+                .expireAfterWrite(expireSeconds, TimeUnit.SECONDS)
+                .build(new CacheLoader<String, List<DiscussPost>>() {
+                    @Nullable
+                    @Override
+
+                    //写的是如何去数据库查数据
+                    public List<DiscussPost> load(@NonNull String key) throws Exception {
+                        if (key == null || key.length() == 0) {      //key是拼接的
+                            throw new IllegalArgumentException("参数错误!");
+                        }
+
+                        String[] params = key.split(":");
+                        if (params == null || params.length != 2) {
+                            throw new IllegalArgumentException("参数错误!");
+                        }
+
+                        int cur = Integer.valueOf(params[0]);
+                        int limit = Integer.valueOf(params[1]);
+
+                        // 二级缓存: Redis -> mysql
+
+                        return findDiscussPosts(0, cur, limit, 1);
+                    }
+                });
+        // 初始化帖子总数缓存
+        postRowsCache = Caffeine.newBuilder()
+                .maximumSize(maxSize)
+                .expireAfterWrite(expireSeconds, TimeUnit.SECONDS)
+                .build(new CacheLoader<Integer, Integer>() {
+                    @Nullable
+                    @Override
+                    public Integer load(@NonNull Integer key) throws Exception {
+                        return selectDiscussPostRows(key);
+                    }
+                });
+    }
+
+
+    public List<DiscussPost> findDiscussPosts(int userId, int cur, int limit,int orderMode){
         QueryWrapper<DiscussPost> queryWrapper=new QueryWrapper<>();
         if (userId!=0){
             queryWrapper.eq("user_id",userId);
         }
-        queryWrapper.orderByDesc("type","create_time");
+        if (orderMode==0){
+            queryWrapper.orderByDesc("type","create_time");
+        }else if(orderMode==1){
+            queryWrapper.orderByDesc("type","score","create_time");
+        }
         queryWrapper.ne("status",2);   //状态2就是被拉黑的帖子
         Page<DiscussPost> page = new Page<>(cur,limit);
         Page<DiscussPost> discussPostPage = discussPostService.page(page, queryWrapper);
@@ -45,7 +115,15 @@ public class DiscussPostServiceImpl extends ServiceImpl<DiscussPostMapper, Discu
     }
 
     @Override
-    public int findDiscussPostRows(int userId) {
+    //orderMode为1代表热门的帖子
+    public List<DiscussPost> selectDiscussPosts(int userId, int cur, int limit,int orderMode) {
+        if (userId == 0 && orderMode == 1) {      //userId为0表示不是访问的自己发布的帖子 而是首页的热门帖子
+            return postListCache.get(cur + ":" + limit);
+        }
+        return findDiscussPosts(userId, cur, limit, orderMode);
+    }
+
+    public int selectDiscussPostRows(int userId){
         QueryWrapper<DiscussPost> queryWrapper=new QueryWrapper<>();
         queryWrapper.ne("status",2);
         if (userId!=0){
@@ -53,6 +131,14 @@ public class DiscussPostServiceImpl extends ServiceImpl<DiscussPostMapper, Discu
         }
         int count = discussPostService.count(queryWrapper);
         return count;
+    }
+
+    @Override
+    public int findDiscussPostRows(int userId) {     //如果userId为0表示不是用户访问自己的帖子数量 就可以去缓存里面去找 否则去数据库里面找
+        if (userId == 0) {
+            return postRowsCache.get(userId);
+        }
+        return selectDiscussPostRows(userId);
     }
 
     @Override
@@ -99,6 +185,15 @@ public class DiscussPostServiceImpl extends ServiceImpl<DiscussPostMapper, Discu
         DiscussPost discussPost = baseMapper.selectById(id);
         if (discussPost!=null){
             discussPost.setStatus(status);
+            baseMapper.updateById(discussPost);
+        }
+    }
+
+    @Override
+    public void updateScore(int postId, double score) {
+        DiscussPost discussPost = baseMapper.selectById(postId);
+        if (discussPost!=null){
+            discussPost.setScore(score);
             baseMapper.updateById(discussPost);
         }
     }

@@ -73,6 +73,7 @@ public class UserController implements CommunityConstant {
 
     @LoginRequired
     @PostMapping(path = "/upload")
+    //上传头像
     public String uploadHeader(MultipartFile headerImage, Model model) {
         if (headerImage == null) {
             model.addAttribute("error", "您还没有选择图片!");
@@ -192,7 +193,6 @@ public class UserController implements CommunityConstant {
         if (user == null) {
             throw new RuntimeException("该用户不存在!");
         }
-
         // 用户
         model.addAttribute("user", user);
         // 点赞数量

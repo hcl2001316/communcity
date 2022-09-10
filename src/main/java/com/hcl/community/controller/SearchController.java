@@ -45,7 +45,6 @@ public class SearchController implements CommunityConstant {
                 map.put("user", userService.findUserById(post.getUserId()));
                 // 点赞数量
                 map.put("likeCount", likeService.findEntityLikeCount(ENTITY_TYPE_POST, post.getId()));
-
                 discussPosts.add(map);
             }
         }

@@ -63,6 +63,7 @@ public class LoginController implements CommunityConstant {
 
 
     @PostMapping(path = "/register")
+    //注册
     public String register(Model model, User user) {
         Map<String, Object> map = userService.register(user);
         if (map == null || map.isEmpty()) {  //注册成功
@@ -80,6 +81,7 @@ public class LoginController implements CommunityConstant {
     }
 
     // http://localhost:8080/community/activation/101/code
+    //激活
     @GetMapping(path = "/activation/{userId}/{code}")
     public String activation(Model model, @PathVariable("userId") int userId, @PathVariable("code") String code) {
         int result = userService.activation(userId, code);
@@ -98,15 +100,16 @@ public class LoginController implements CommunityConstant {
 
     @GetMapping(path = "/kaptcha")
     public void getKaptcha(HttpServletResponse response) {
+        System.out.println("我返回了验证码");
         // 生成验证码
         String text = kaptchaProducer.createText();
         BufferedImage image = kaptchaProducer.createImage(text);
         // 给每一个打开网站的用户分配一个字符串用来表示验证码的归属
         String kaptchaOwner = CommunityUtil.generateUUID();
-        //将生成的随机凭证返回给客户端
+        //将生成的随机临时凭证返回给客户端
         Cookie cookie = new Cookie("kaptchaOwner", kaptchaOwner);
         cookie.setMaxAge(60);
-        cookie.setPath(contextPath);
+        cookie.setPath(contextPath);   //有效路径
         response.addCookie(cookie);
         // 将验证码存入Redis  根据上面的凭证生成key
         String redisKey = RedisKeyUtil.getKaptchaKey(kaptchaOwner);
@@ -122,17 +125,21 @@ public class LoginController implements CommunityConstant {
         }
     }
 
+
+    //登录功能
     @PostMapping(path = "/login")
     public String login(String username, String password, String code, boolean rememberme,
                         Model model,HttpServletResponse response,
                         @CookieValue("kaptchaOwner") String kaptchaOwner) {  //获取客户端传过来的凭证 然后去redis里面查询
 
+        //根据用户传过来的验证码去redis里面找 进行一个校验
         String kaptcha = null;
         if (StringUtils.isNotBlank(kaptchaOwner)) {
             String redisKey = RedisKeyUtil.getKaptchaKey(kaptchaOwner);
             kaptcha = (String) redisTemplate.opsForValue().get(redisKey);
         }
 
+        //校验失败直接返回登录界面
         if (StringUtils.isBlank(kaptcha) || StringUtils.isBlank(code) || !kaptcha.equalsIgnoreCase(code)) {
             model.addAttribute("codeMsg", "验证码不正确!");
             return "/site/login";

@@ -39,5 +39,7 @@ public interface UserService extends IService<User> {
 
     Map<String, Object> forget(String email, String verifycode, String password, HttpSession session);
 
-    Collection<? extends GrantedAuthority> getAuthorities(int userId);
+     Collection<? extends GrantedAuthority> getAuthorities(int userId);
+
+
 }

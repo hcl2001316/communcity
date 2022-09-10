@@ -15,7 +15,7 @@ import java.util.List;
  */
 public interface DiscussPostService extends IService<DiscussPost> {
 
-    List<DiscussPost> selectDiscussPosts(int userId, int offset, int limit);
+    List<DiscussPost> selectDiscussPosts(int userId, int cur, int limit,int orderMode);
 
     int findDiscussPostRows(int userId);
 
@@ -28,4 +28,6 @@ public interface DiscussPostService extends IService<DiscussPost> {
     void updateType(int id, int i);
 
     void updateStatus(int id, int i);
+
+    void updateScore(int postId, double score);
 }

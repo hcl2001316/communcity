@@ -1,5 +1,7 @@
 package com.hcl.community.util;
 
+import java.util.Vector;
+
 public class RedisKeyUtil {
     private static final String SPLIT = ":";
     private static final String PREFIX_ENTITY_LIKE = "like:entity";
@@ -61,9 +63,6 @@ public class RedisKeyUtil {
     public static String getPostScoreKey() {
         return PREFIX_POST + SPLIT + "score";
     }
-
-
-
 
     // 登录验证码
     public static String getKaptchaKey(String owner) {

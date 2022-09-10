@@ -113,13 +113,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // http://localhost:8080/community/activation/101/code
         String url = domain + contextPath + "/activation/" + user.getId() + "/" + user.getActivationCode();
         context.setVariable("url", url);
+        //邮件的内容是html页面
         String content = templateEngine.process("/mail/activation", context);
         mailClient.sendMail(user.getEmail(), "激活账号", content);
-
         return map;
     }
     @Override
     public User findUserById(Integer  id) {
+        //从缓存中取值
         User user = getCache(id);
         if (user == null) {
             user = initCache(id);
@@ -127,6 +128,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return user;
     }
 
+    /*
+    * 激活用户
+    * */
     public int activation(int userId, String code) {
         User user = baseMapper.selectById(userId);
         if (user.getStatus() == 1) {
@@ -181,7 +185,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             return map;
         }
 
-        // 生成登录凭证
+        // 如果验证账号和密码都成功了就生成登录凭证 存入redis中
         LoginTicket loginTicket = new LoginTicket();
         loginTicket.setUserId(user.getId());
         loginTicket.setTicket(CommunityUtil.generateUUID());
